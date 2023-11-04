@@ -6,7 +6,7 @@ from mpl_toolkits.axes_grid1 import Grid
 import os
 
 
-def spatial_to_freq(img):
+def spatial_to_freq(img: np.ndarray) -> np.ndarray:
     # Calculate the 2D discrete Fourier Transform
     f = np.fft.fft2(img)
     # Shift the zero-frequency component to the center of the spectrum
@@ -15,7 +15,7 @@ def spatial_to_freq(img):
     return fshift
 
 
-def freq_to_spatial(freq_img):
+def freq_to_spatial(freq_img: np.ndarray) -> np.ndarray:
     # Shift the zero-frequency component to the center of the spectrum
     f_ishift = np.fft.ifftshift(freq_img)
     # Calculate the 2D discrete Fourier Transform
@@ -24,12 +24,12 @@ def freq_to_spatial(freq_img):
     return img_back
 
 
-def calculate_magnitude_spectrum(img):
+def calculate_magnitude_spectrum(img: np.ndarray) -> np.ndarray:
     np.seterr(divide='ignore')
     return 20 * np.log(np.abs(img))
 
 
-def create_notch_mask(height, width, radius=10, invert=False):
+def create_notch_mask(height: int, width: int, radius: int = 10, invert: bool = False) -> np.ndarray:
     mask = np.zeros((height, width), np.uint8)
 
     for i in range(height):
@@ -43,7 +43,7 @@ def create_notch_mask(height, width, radius=10, invert=False):
     return mask
 
 
-def create_gaussian_mask(height, width, D0=10, invert=False):
+def create_gaussian_mask(height: int, width: int, D0: int = 10, invert: bool = False) -> np.ndarray:
     mask = np.zeros((height, width), np.uint8)
 
     # Change to float
@@ -62,7 +62,7 @@ def create_gaussian_mask(height, width, D0=10, invert=False):
     return mask
 
 
-def create_butterworth_mask(height, width, D0=10, n=1, invert=False):
+def create_butterworth_mask(height: int, width: int, D0: int = 10, n: int = 1, invert: bool = False):
     mask = np.zeros((height, width), np.uint8)
 
     # Change to float
@@ -81,11 +81,11 @@ def create_butterworth_mask(height, width, D0=10, n=1, invert=False):
     return mask
 
 
-def apply_mask(img, mask):
+def apply_mask(img: np.ndarray, mask: np.ndarray) -> np.ndarray:
     return img * mask
 
 
-def plot_3D(mask, title="", folder=""):
+def plot_3D(mask: np.ndarray, title="", folder=""):
     width, height = mask.shape
 
     fig = plt.figure()
@@ -106,7 +106,7 @@ def plot_3D(mask, title="", folder=""):
     plt.close()
 
 
-def main(img, img_name):
+def process(img: np.ndarray, img_name: str) -> None:
 
     if not os.path.exists(f"out/{img_name}"):
         os.makedirs(f"out/{img_name}")
@@ -184,7 +184,11 @@ def main(img, img_name):
 
     img_ratio = width / height
 
-    for mask_dict in masks:
+    fig_all, ax_all = plt.subplots(4, len(masks) // 4, figsize=(
+        10, 10 * img_ratio
+    ))
+
+    for i, mask_dict in enumerate(masks):
 
         mask = mask_dict["mask"]
         title = mask_dict["title"]
@@ -218,7 +222,16 @@ def main(img, img_name):
 
         fig.savefig(f"./out/{img_name}/{mask_type}/result/{title}.png")
 
+        ax_all[i // 4, i % 4].imshow(img_result.real, cmap='gray')
+        ax_all[i // 4, i % 4].set_title(f"{mask_type} {title}")
+
         plt.close()
+
+    fig_all.suptitle(f"Applied Masks {img_name}", size=20, y=0.85)
+    fig_all.tight_layout()
+    fig_all.savefig(f"./out/{img_name}/applied_masks.png")
+
+    plt.show()
 
 
 # Read image
@@ -227,7 +240,7 @@ fruit = cv.imread('./img/fruit.jpg', cv.IMREAD_GRAYSCALE)
 horizontal_noise_img = cv.imread("img/Noisy_flower1_horizontal.jpg", cv.IMREAD_GRAYSCALE)
 vertical_noise_img = cv.imread("img/Noisy_flower1_vertical.jpg", cv.IMREAD_GRAYSCALE)
 
-main(fruit, "fruit")
-main(flower, "flower")
-main(horizontal_noise_img, "horizontal_noise")
-main(vertical_noise_img, "vertical_noise")
+process(fruit, "fruit")
+process(flower, "flower")
+process(horizontal_noise_img, "horizontal_noise")
+process(vertical_noise_img, "vertical_noise")
