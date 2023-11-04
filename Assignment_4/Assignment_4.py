@@ -3,10 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.axes_grid1 import Grid
-
-# Read image
-flower = cv.imread('./img/flower1.jpg', cv.IMREAD_GRAYSCALE)
-fruit = cv.imread('./img/fruit.jpg', cv.IMREAD_GRAYSCALE)
+import os
 
 
 def spatial_to_freq(img):
@@ -65,11 +62,30 @@ def create_gaussian_mask(height, width, D0=10, invert=False):
     return mask
 
 
+def create_butterworth_mask(height, width, D0=10, n=1, invert=False):
+    mask = np.zeros((height, width), np.uint8)
+
+    # Change to float
+    mask = np.float32(mask)
+
+    cX, cY = width // 2, height // 2
+
+    for i in range(-cY, cY):
+        for j in range(-cX, cX):
+            distance = np.sqrt(i ** 2 + j ** 2)
+            mask[i + cY, j + cX] = 1 / (1 + (distance / D0) ** (2 * n))
+
+    if invert:
+        mask = 1 - mask
+
+    return mask
+
+
 def apply_mask(img, mask):
     return img * mask
 
 
-def plot_3D(mask, title="", img_name=""):
+def plot_3D(mask, title="", folder=""):
     width, height = mask.shape
 
     fig = plt.figure()
@@ -83,14 +99,17 @@ def plot_3D(mask, title="", img_name=""):
     Z = mask[X, Y]
 
     ax.plot_surface(X, Y, Z, cmap='viridis')
-    plt.title(title)
-    plt.savefig(f"out/{img_name}/{title}.png")
+    fig.suptitle(title)
+    plt.savefig(f"{folder}/{title}.png")
 
     ax.remove()
     plt.close()
 
 
 def main(img, img_name):
+
+    if not os.path.exists(f"out/{img_name}"):
+        os.makedirs(f"out/{img_name}")
 
     freq_img = spatial_to_freq(img)
     width, height = freq_img.shape[0], freq_img.shape[1]
@@ -101,34 +120,56 @@ def main(img, img_name):
     # Cut-off D0
     D0_list = [10, 50, 100]
 
+    # Butterworth n
+    n_list = np.arange(1, 6, 1)
+
     # Notch Mask
-    low_pass_mask_list = [{
+    low_pass_notch = [{
         "mask": create_notch_mask(width, height, radius),
-        "title": f"Low Pass Notch Mask with radius {radius}"
+        "title": f"LowPass r {radius}",
+        "type": "notch"
     } for radius in radius_list]
 
-    high_pass_mask_list = [{
+    high_pass_notch = [{
         "mask": create_notch_mask(width, height, radius, invert=True),
-        "title": f"High Pass Notch Mask with radius {radius}"
+        "title": f"HighPass r {radius}",
+        "type": "notch"
     } for radius in radius_list]
 
     # Gaussian Mask
-    low_pass_gaussian_mask_list = [{
+    low_pass_gaussian = [{
         "mask": create_gaussian_mask(width, height, D0),
-        "title": f"Low Pass Gaussian Mask with D0 {D0}"
+        "title": f"LowPass D0 {D0}",
+        "type": "gaussian"
     } for D0 in D0_list]
 
-    high_pass_gaussian_mask_list = [{
+    high_pass_gaussian = [{
         "mask": create_gaussian_mask(width, height, D0, invert=True),
-        "title": f"High Pass Gaussian Mask with D0 {D0}"
+        "title": f"HighPass D0 {D0}",
+        "type": "gaussian"
     } for D0 in D0_list]
+
+    # Butterworth Mask
+    low_pass_butterworth = [{
+        "mask": create_butterworth_mask(width, height, D0, n),
+        "title": f"LowPass D0 {D0} n {n}",
+        "type": "butterworth"
+    } for D0 in D0_list for n in n_list]
+
+    high_pass_butterworth = [{
+        "mask": create_butterworth_mask(width, height, D0, n, invert=True),
+        "title": f"HighPass D0 {D0} n {n}",
+        "type": "butterworth"
+    } for D0 in D0_list for n in n_list]
 
     # Concatenate all masks
-    masks = low_pass_mask_list + high_pass_mask_list + low_pass_gaussian_mask_list + high_pass_gaussian_mask_list
+    masks = low_pass_notch + high_pass_notch + \
+        low_pass_gaussian + high_pass_gaussian + \
+        low_pass_butterworth + high_pass_butterworth
 
     # Calculate the magnitude spectrum
     magnitude_spectrum = calculate_magnitude_spectrum(freq_img)
-    plot_3D(magnitude_spectrum, title="Magnitude Spectrum", img_name=img_name)
+    plot_3D(magnitude_spectrum, title="Magnitude Spectrum 3D", folder=f"out/{img_name}")
 
     # Plot the magnitude spectrum
     plt.subplot(121)
@@ -147,8 +188,13 @@ def main(img, img_name):
 
         mask = mask_dict["mask"]
         title = mask_dict["title"]
+        mask_type = mask_dict["type"]
 
-        plot_3D(mask, title=title, img_name=img_name)
+        if not os.path.exists(f"out/{img_name}/{mask_type}"):
+            os.makedirs(f"out/{img_name}/{mask_type}/mask")
+            os.makedirs(f"out/{img_name}/{mask_type}/result")
+
+        plot_3D(mask, title=title, folder=f"./out/{img_name}/{mask_type}/mask")
 
         result = apply_mask(freq_img, mask)
 
@@ -170,10 +216,18 @@ def main(img, img_name):
         fig.suptitle("Applied " + title, size=20, y=0.85)
         fig.tight_layout()
 
-        fig.savefig(f"out/{img_name}/Applied {title}.png")
+        fig.savefig(f"./out/{img_name}/{mask_type}/result/{title}.png")
 
         plt.close()
 
 
+# Read image
+flower = cv.imread('./img/flower1.jpg', cv.IMREAD_GRAYSCALE)
+fruit = cv.imread('./img/fruit.jpg', cv.IMREAD_GRAYSCALE)
+horizontal_noise_img = cv.imread("img/Noisy_flower1_horizontal.jpg", cv.IMREAD_GRAYSCALE)
+vertical_noise_img = cv.imread("img/Noisy_flower1_vertical.jpg", cv.IMREAD_GRAYSCALE)
+
 main(fruit, "fruit")
 main(flower, "flower")
+main(horizontal_noise_img, "horizontal_noise")
+main(vertical_noise_img, "vertical_noise")
