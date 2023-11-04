@@ -24,6 +24,7 @@ def freq_to_spatial(freq_img):
 
 
 def calculate_magnitude_spectrum(img):
+    np.seterr(divide='ignore')
     return 20 * np.log(np.abs(img))
 
 
